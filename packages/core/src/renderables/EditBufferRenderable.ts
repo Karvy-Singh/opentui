@@ -626,17 +626,14 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
   }
 
   private getWordSelectionAtOffset(offset: number): { start: number; end: number } | null {
-    const text = this.editBuffer.getText()
-    if (text.length === 0) return null
+    if (offset < 0) return null
 
-    if (offset < 0 || offset >= text.length) return null
+    // EditBuffer offsets are display-width offsets; avoid JS string length for bounds checks.
+    const initial = this.editBuffer.getTextRange(offset, offset + 1)
+    if (!this.isWordSelectionText(initial)) return null
 
     let start = offset
     let end = start + 1
-
-    if (!this.isWordSelectionText(this.editBuffer.getTextRange(start, end))) {
-      return null
-    }
 
     // Expand over the same token class in both directions. Punctuation and
     // whitespace intentionally stop expansion instead of joining nearby words.
@@ -644,7 +641,7 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
       start -= 1
     }
 
-    while (end < text.length && this.isWordSelectionText(this.editBuffer.getTextRange(end, end + 1))) {
+    while (this.isWordSelectionText(this.editBuffer.getTextRange(end, end + 1))) {
       end += 1
     }
 
