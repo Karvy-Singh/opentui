@@ -3427,6 +3427,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
 
     const now = this.clock.now()
     const previous = this.lastClick
+    // Treat a click as part of the same multi-click sequence only when it lands
+    // on the exact same cell and renderable; drags or nearby clicks start over.
     const sameClickTarget =
       previous &&
       previous.button === mouseEvent.button &&
@@ -3508,6 +3510,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
     ) {
       const clickCount = this.getClickCount(mouseEvent, maybeRenderableId)
 
+      // Handle editor-specific multi-click selection before the normal
+      // single-click branch starts a drag selection at this same position.
       if (clickCount === 2 && isEditBufferRenderable(maybeRenderable)) {
         maybeRenderable.selectWordAt(mouseEvent.x, mouseEvent.y)
         this.dispatchMouseEvent(maybeRenderable, mouseEvent)

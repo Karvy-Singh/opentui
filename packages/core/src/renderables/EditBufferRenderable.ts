@@ -613,6 +613,8 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
   selectWordAt(x: number, y: number): void {
     if (!this.moveCursorToMousePosition(x, y)) return
 
+    // Native word-boundary navigation is broader than double-click semantics
+    // here, so select the contiguous word-token under the clicked cell instead.
     const cursor = this.editBuffer.getCursorPosition()
     const selection = this.getWordSelectionAtOffset(cursor.offset)
     if (!selection) {
@@ -636,6 +638,8 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
       return null
     }
 
+    // Expand over the same token class in both directions. Punctuation and
+    // whitespace intentionally stop expansion instead of joining nearby words.
     while (start > 0 && this.isWordSelectionText(this.editBuffer.getTextRange(start - 1, start))) {
       start -= 1
     }
@@ -648,6 +652,7 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
   }
 
   private isWordSelectionText(text: string): boolean {
+    // Keep underscores with identifiers while treating punctuation as a boundary.
     return /^[\p{L}\p{N}_]$/u.test(text)
   }
 
@@ -666,6 +671,8 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
 
     const localX = x - this.x
     const localY = y - this.y
+    // Reuse editor-view local selection mapping to place the logical cursor at
+    // the clicked cell, then clear the temporary local selection immediately.
     this.editorView.setLocalSelection(localX, localY, localX, localY, this._selectionBg, this._selectionFg, true)
 
     this.editorView.resetLocalSelection()
