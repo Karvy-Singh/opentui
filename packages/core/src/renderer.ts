@@ -828,6 +828,17 @@ export class CliRenderer extends EventEmitter implements RenderContext {
   private selectionContainers: Renderable[] = []
   private clipboard: Clipboard
 
+  private lastClick: {
+    time: number
+    x: number
+    y: number
+    button: number
+    targetId: number
+    count: number
+  } | null = null
+
+  private readonly multiClickThresholdMs = 500
+
   private _splitHeight: number = 0
   private renderOffset: number = 0
   private splitTailColumn: number = 0
@@ -2708,7 +2719,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
 
   private flushPendingSplitOutputBeforeTransition(
     forceFooterRepaint: boolean = false,
-    options: { allowSuspended?: boolean; allowPassthrough?: boolean; allowUnsetup?: boolean } = {},
+    options: {
+      allowSuspended?: boolean
+      allowPassthrough?: boolean
+      allowUnsetup?: boolean
+    } = {},
   ): void {
     const hasDeferredCapturedOutput = this.externalOutputQueue.size > 0 || this.pendingExternalOutputMode !== null
     if (
@@ -3142,13 +3157,17 @@ export class CliRenderer extends EventEmitter implements RenderContext {
           return
         }
 
-        this.updateStdinParserProtocolContext({ startupCursorCprActive: false })
+        this.updateStdinParserProtocolContext({
+          startupCursorCprActive: false,
+        })
 
         if (this._screenMode === "split-footer" && this._externalOutputMode === "capture-stdout") {
           this.requestRender()
         }
 
-        this.flushPendingSplitOutputBeforeTransition(false, { allowPassthrough: true })
+        this.flushPendingSplitOutputBeforeTransition(false, {
+          allowPassthrough: true,
+        })
       }, 120)
     }
 
@@ -3403,6 +3422,33 @@ export class CliRenderer extends EventEmitter implements RenderContext {
     return event
   }
 
+  private getClickCount(mouseEvent: RawMouseEvent, targetId: number): number {
+    if (mouseEvent.type !== "down") return 0
+
+    const now = this.clock.now()
+    const previous = this.lastClick
+    const sameClickTarget =
+      previous &&
+      previous.button === mouseEvent.button &&
+      previous.targetId === targetId &&
+      previous.x === mouseEvent.x &&
+      previous.y === mouseEvent.y &&
+      now - previous.time <= this.multiClickThresholdMs
+
+    const count = sameClickTarget ? Math.min(previous.count + 1, 3) : 1
+
+    this.lastClick = {
+      time: now,
+      x: mouseEvent.x,
+      y: mouseEvent.y,
+      button: mouseEvent.button,
+      targetId,
+      count,
+    }
+
+    return count
+  }
+
   private processSingleMouseEvent(mouseEvent: RawMouseEvent): boolean {
     if (this._splitHeight > 0) {
       if (mouseEvent.y < this.renderOffset) {
@@ -3452,6 +3498,28 @@ export class CliRenderer extends EventEmitter implements RenderContext {
     const sameElement = maybeRenderableId === this.lastOverRenderableNum
     this.lastOverRenderableNum = maybeRenderableId
     const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
+
+    if (
+      mouseEvent.type === "down" &&
+      mouseEvent.button === MouseButton.LEFT &&
+      maybeRenderable &&
+      maybeRenderable.selectable &&
+      !mouseEvent.modifiers.ctrl
+    ) {
+      const clickCount = this.getClickCount(mouseEvent, maybeRenderableId)
+
+      if (clickCount === 2 && isEditBufferRenderable(maybeRenderable)) {
+        maybeRenderable.selectWordAt(mouseEvent.x, mouseEvent.y)
+        this.dispatchMouseEvent(maybeRenderable, mouseEvent)
+        return true
+      }
+
+      if (clickCount >= 3 && isEditBufferRenderable(maybeRenderable)) {
+        maybeRenderable.selectLineAt(mouseEvent.x, mouseEvent.y)
+        this.dispatchMouseEvent(maybeRenderable, mouseEvent)
+        return true
+      }
+    }
 
     if (
       mouseEvent.type === "down" &&
@@ -3991,7 +4059,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
 
     if (this._terminalIsSetup) {
       this.clearSplitStartupCursorSeed()
-      this.flushPendingSplitOutputBeforeTransition(true, { allowSuspended: true })
+      this.flushPendingSplitOutputBeforeTransition(true, {
+        allowSuspended: true,
+      })
       this.suspendedNonAltSurfacePreserved = this._screenMode !== "alternate-screen" && this.renderOffset > 0
     } else {
       this.suspendedNonAltSurfacePreserved = false
@@ -4055,7 +4125,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
 
     this.suspendedNonAltSurfacePreserved = false
 
-    this.flushPendingSplitOutputBeforeTransition(false, { allowSuspended: true, allowPassthrough: true })
+    this.flushPendingSplitOutputBeforeTransition(false, {
+      allowSuspended: true,
+      allowPassthrough: true,
+    })
 
     if (this._screenMode === "split-footer" && this._splitHeight > 0) {
       this.syncSplitFooterState()
@@ -4199,7 +4272,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
     }
 
     if (this._feed !== null && this._splitHeight > 0 && !this._terminalIsSetup) {
-      this.flushPendingSplitOutputBeforeTransition(false, { allowSuspended: true, allowUnsetup: true })
+      this.flushPendingSplitOutputBeforeTransition(false, {
+        allowSuspended: true,
+        allowUnsetup: true,
+      })
     }
 
     this.externalOutputMode = "passthrough"

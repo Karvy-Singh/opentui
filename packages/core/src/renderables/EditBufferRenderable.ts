@@ -610,6 +610,70 @@ export abstract class EditBufferRenderable extends Renderable implements LineInf
     this.setSelection(Math.min(start, end), Math.max(start, end) + 1)
   }
 
+  selectWordAt(x: number, y: number): void {
+    if (!this.moveCursorToMousePosition(x, y)) return
+
+    const cursor = this.editBuffer.getCursorPosition()
+    const selection = this.getWordSelectionAtOffset(cursor.offset)
+    if (!selection) {
+      this.clearSelection()
+      return
+    }
+
+    this.setSelection(selection.start, selection.end)
+  }
+
+  private getWordSelectionAtOffset(offset: number): { start: number; end: number } | null {
+    const text = this.editBuffer.getText()
+    if (text.length === 0) return null
+
+    if (offset < 0 || offset >= text.length) return null
+
+    let start = offset
+    let end = start + 1
+
+    if (!this.isWordSelectionText(this.editBuffer.getTextRange(start, end))) {
+      return null
+    }
+
+    while (start > 0 && this.isWordSelectionText(this.editBuffer.getTextRange(start - 1, start))) {
+      start -= 1
+    }
+
+    while (end < text.length && this.isWordSelectionText(this.editBuffer.getTextRange(end, end + 1))) {
+      end += 1
+    }
+
+    return { start, end }
+  }
+
+  private isWordSelectionText(text: string): boolean {
+    return /^[\p{L}\p{N}_]$/u.test(text)
+  }
+
+  selectLineAt(x: number, y: number): void {
+    if (!this.moveCursorToMousePosition(x, y)) return
+
+    const cursor = this.editBuffer.getCursorPosition()
+    const start = this.editBuffer.getLineStartOffset(cursor.row)
+    const end = this.editBuffer.getEOL()
+
+    this.setSelection(start, end.offset)
+  }
+
+  private moveCursorToMousePosition(x: number, y: number): boolean {
+    if (!this.shouldStartSelection(x, y)) return false
+
+    const localX = x - this.x
+    const localY = y - this.y
+    this.editorView.setLocalSelection(localX, localY, localX, localY, this._selectionBg, this._selectionFg, true)
+
+    this.editorView.resetLocalSelection()
+    this.lastLocalSelection = null
+
+    return true
+  }
+
   clearSelection(): boolean {
     const had = this.hasSelection()
     this.lastLocalSelection = null

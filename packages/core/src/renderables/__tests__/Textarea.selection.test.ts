@@ -51,6 +51,83 @@ describe("Textarea - Selection Tests", () => {
       expect(editor.getSelectedText()).toBe("Hello")
     })
 
+    it("should select a word on double click", async () => {
+      const { textarea: editor } = await createTextareaRenderable(currentRenderer, renderOnce, {
+        initialValue: "Hello World",
+        width: 40,
+        height: 10,
+        selectable: true,
+      })
+
+      await currentMouse.doubleClick(editor.x + 1, editor.y)
+      await renderOnce()
+
+      expect(editor.getSelectedText()).toBe("Hello")
+      expect(editor.getSelection()).toEqual({ start: 0, end: 5 })
+    })
+
+    it("should select only the clicked word at punctuation boundaries", async () => {
+      const { textarea: editor } = await createTextareaRenderable(currentRenderer, renderOnce, {
+        initialValue: "Emacs-style)",
+        width: 40,
+        height: 10,
+        selectable: true,
+      })
+
+      await currentMouse.doubleClick(editor.x + 6, editor.y)
+      await renderOnce()
+
+      expect(editor.getSelectedText()).toBe("style")
+      expect(editor.getSelection()).toEqual({ start: 6, end: 11 })
+    })
+
+    it("should not include the previous word when double clicking the first letter", async () => {
+      const { textarea: editor } = await createTextareaRenderable(currentRenderer, renderOnce, {
+        initialValue: "Hello World",
+        width: 40,
+        height: 10,
+        selectable: true,
+      })
+
+      await currentMouse.doubleClick(editor.x + 6, editor.y)
+      await renderOnce()
+
+      expect(editor.getSelectedText()).toBe("World")
+      expect(editor.getSelection()).toEqual({ start: 6, end: 11 })
+    })
+
+    it("should not select adjacent words when double clicking whitespace", async () => {
+      const { textarea: editor } = await createTextareaRenderable(currentRenderer, renderOnce, {
+        initialValue: "Hello World",
+        width: 40,
+        height: 10,
+        selectable: true,
+      })
+
+      await currentMouse.doubleClick(editor.x + 5, editor.y)
+      await renderOnce()
+
+      expect(editor.hasSelection()).toBe(false)
+      expect(editor.getSelectedText()).toBe("")
+    })
+
+    it("should select a line on triple click", async () => {
+      const { textarea: editor } = await createTextareaRenderable(currentRenderer, renderOnce, {
+        initialValue: "First\nSecond line\nThird",
+        width: 40,
+        height: 10,
+        selectable: true,
+      })
+
+      await currentMouse.click(editor.x + 3, editor.y + 1)
+      await currentMouse.click(editor.x + 3, editor.y + 1)
+      await currentMouse.click(editor.x + 3, editor.y + 1)
+      await renderOnce()
+
+      expect(editor.getSelectedText()).toBe("Second line")
+      expect(editor.getSelection()).toEqual({ start: 6, end: 17 })
+    })
+
     it("should return selected text from multi-line content", async () => {
       const { textarea: editor } = await createTextareaRenderable(currentRenderer, renderOnce, {
         initialValue: "AAAA\nBBBB\nCCCC",
